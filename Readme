@@ -1,1 +1,600 @@
-Readme
+import Foundation
+import Combine
+
+//https://developer.apple.com/documentation/combine/future
+
+// 1. generateRandomNumber with closure
+// 2. Use a swift Result type
+// 3. generateAsyncRandomNumberFromFuture
+// 4. promise(.success(number))
+// 5. Never to Error
+// 6. extend .sink to include receiveValue
+// 7. print out completion in sink
+// 8. add switch on completion + print
+// 9. add promise(.failure(RandomError.error))
+// 10. Timer
+// 11. Add Map operator to the future and explain AnyPublisher
+// 12. eraseToAnyPublisher()
+// 13. Show PR
+
+print("Is working....")
+
+enum ImportantError : Error {
+    case error
+}
+
+
+
+======
+
+//https://developer.apple.com/documentation/combine/future
+
+// 1. generateRandomNumber with closure
+// 2. Use a swift Result type
+// 3. generateAsyncRandomNumberFromFuture
+// 4. promise(.success(number))
+// 5. Never to Error
+// 6. extend .sink to include receiveValue
+// 7. print out completion in sink
+// 8. add switch on completion + print
+// 9. add promise(.failure(RandomError.error))
+// 10. Timer
+// 11. Add Map operator to the future and explain AnyPublisher
+// 12. eraseToAnyPublisher()
+
+// 13. PR: Show public interface of IMI then show file IMI public interface success 
+// 14. show pratical usage of sink 
+// 15. Show how to mock the publisher in Mocked publisher file 
+// 16. example of test_onAppear_returnsAnActiveThread unit test 
+// 17. InAppMessagingLandingPageViewModel: ObservableObject
+// Show test of @Published private(set) var state: InAppMessagingLandingPageViewModel.State
+// 
+//
+//
+// 18. class MockSubscriber<ObservableType, PublishedType>
+//
+
+enum ImportantError: Error {
+    case error
+}
+
+func generateRandomNumber(completion: @escaping (Int?, ImportantError?) -> Void) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        let number = Int.random(in: 1...10)
+//        completion(number, nil)
+        completion(nil, ImportantError.error)
+    }
+}
+
+generateRandomNumber { output, error in
+    if let output = output {
+        print("output received: \(output)")
+    }
+    
+    if let error = error {
+        print("error received: \(error)")
+    }
+}
+
+func generateAsyncRandomNumberFromFuture() -> AnyPublisher <Int, Error> {
+    return Future() { promise in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            let number = Int.random(in: 1...10)
+            promise(.success(number))
+//            promise(.failure(RandomError.error))
+        }
+    }.map { value in
+        return value + 100
+    }
+    .filter({ number in
+        return true
+    })
+    .eraseToAnyPublisher()
+}
+
+var cancellable = generateAsyncRandomNumberFromFuture()
+    .sink { completion in
+
+        switch completion {
+            case .finished:
+                print(completion)
+            case .failure:
+                print(completion)
+        }
+    } receiveValue: { value in
+        print(value)
+    }
+===========
+
+let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+var counter = 0
+let subscriber = timer
+    .map({ (date) -> Void in
+        counter += 1
+    })
+    .sink(receiveCompletion: { completion in
+        print("completed")
+    }, receiveValue: { _ in
+
+        print("I am printing the counter \(counter)")
+        if counter >= 5 {
+                  print("greater than 5")
+                  timer.upstream.connect().cancel()
+              }
+
+    })
+
+
+
+======
+import Foundation
+
+enum ImportantError : Error {
+    case error
+}
+
+func generateRandomNumber(completion: @escaping (Int?, ImportantError?) -> Void) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        let number = Int.random(in: 1...10)
+        completion(number, nil)
+    }
+}
+
+generateRandomNumber { output, error in
+    if let output = output {
+        print("output \(output)")
+    }
+
+    if let error = error {
+        print("error \(error)")
+    }
+}
+
+// Int = 10, error = nil - looks like this succeeded
+// Int = nil, error = ImportantError.error - looks like this failed
+// Int = nil, error = nil ???????
+// Int = 10, error = ImportantError.error ????????
+
+======
+
+enum ImportantError : Error {
+    case error
+}
+
+// Swift Result<Int, ImportantError>
+func generateRandomNumber(completion: @escaping (Result<Int, ImportantError>) -> Void) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        let number = Int.random(in: 1...10)
+        
+        completion(.success(number))
+//        completion(.failure(ImportantError.error))
+    }
+}
+
+generateRandomNumber { result in
+    switch result {
+        case .success(let output):
+            print("output: \(output)")
+        case .failure(let error):
+            print("error: \(error)")
+    }
+}
+
+// Int = 10 looks like this succeeded
+// error = ImportantError.error - looks like this failed
+
+==========
+
+
+//: [Previous](@previous)
+
+import Foundation
+import Combine
+
+struct InAppMessagingThread {
+    let title: String = "Title"
+}
+
+enum InAppMessagingError: Error {
+    case veryImportantError
+}
+
+// Will be successful and return a [InAppMessagingThread]
+func fetchThreads(updatedBefore: Date, limit: Int, queue: DispatchQueue?) -> AnyPublisher<[InAppMessagingThread], InAppMessagingError> {
+    return Future() { promise in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            // Goes to API and gets values
+            promise(.success([InAppMessagingThread()]))
+        }
+    }
+    .eraseToAnyPublisher()
+}
+
+
+var cancellable = fetchThreads(updatedBefore: Date(), limit: 10, queue: DispatchQueue.main)
+    .sink { completion in
+        switch completion {
+            case .finished:
+                print(".finished")
+            case .failure(let error):
+                print(".failure with error \(error)")
+        }
+    } receiveValue: { output in
+        print("output \(output)")
+    }
+
+=======
+
+//: [Previous](@previous)
+
+import Foundation
+import Combine
+
+struct InAppMessagingThread {
+    let title: String = "Title"
+}
+
+enum InAppMessagingError: Error {
+    case veryImportantError
+}
+
+// Will fail and return a InAppMessagingError.veryImportantError
+func fetchThreads(updatedBefore: Date, limit: Int, queue: DispatchQueue?) -> AnyPublisher<[InAppMessagingThread], InAppMessagingError> {
+    return Future() { promise in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            promise(.failure(.veryImportantError))
+        }
+    }
+    .eraseToAnyPublisher()
+
+}
+
+
+var cancellable = fetchThreads(updatedBefore: Date(), limit: 10, queue: nil)
+    .sink { completion in
+        switch completion {
+            case .finished:
+                print(".finished")
+            case .failure(let error):
+                print(".failure with error \(error)")
+        }
+    } receiveValue: { output in
+        print("output \(output)")
+    }
+
+========
+
+
+//: [Previous](@previous)
+
+import Foundation
+import Combine
+
+// https://developer.apple.com/documentation/combine/future
+// Future
+// A publisher that eventually produces a single value and then finishes or fails.
+
+final class MockInAppMessagingChat: MockBase<InAppMessagingChatProtocol>, InAppMessagingChatProtocol {
+    
+    var fetchThreadsError: InAppMessagingError?
+    var mockThreads: [InAppMessagingThread] = []
+    
+    func fetchThreads(updatedBefore: Date, limit: Int, queue: DispatchQueue?) -> AnyPublisher<[InAppMessagingThread], InAppMessagingError> {
+        return Future<[InAppMessagingThread], InAppMessagingError> { promise in
+            if let error = self.fetchThreadsError {
+                promise(.failure(error))
+            } else {
+                promise(.success(self.mockThreads))
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+}
+
+
+public protocol InAppMessagingChatProtocol {
+    func fetchThreads(updatedBefore: Date, limit: Int, queue: DispatchQueue?) -> AnyPublisher<[InAppMessagingThread], InAppMessagingError>
+}
+
+public struct InAppMessagingThread {
+    let title: String = "Title"
+}
+
+public enum InAppMessagingError: Error {
+    case veryImportantError
+}
+
+=======
+
+//  MockBase.swift
+//  CardAppTests
+//
+//  Created by Flint, Matthew K. on 11/04/2018.
+//  Copyright © 2018 CapitalOne. All rights reserved.
+//
+
+import XCTest
+import Combine
+
+public protocol ExpectationReceiver {
+    func expect() -> ExpectationReceiver
+    
+    func accept(call: String, file: StaticString, line: UInt)
+    
+    func verify(file: StaticString, line: UInt)
+}
+
+/// `ExpectationConsumer` consumes calls while the test is running, checking
+/// each call against the list of previously-set expectations.
+private final class ExpectationConsumer: ExpectationReceiver {
+    private let mockName: String?
+    var expectations = [String]()
+    
+    public init(mockName: String?) {
+        self.mockName = mockName
+    }
+    
+    func expect() -> ExpectationReceiver {
+        return ExpectationSetter(mockName: self.mockName, consumer: self)
+    }
+    
+    func accept(call: String, file: StaticString, line: UInt) {
+        guard let index = expectations.firstIndex(of: call) else {
+            if let mockName = self.mockName {
+                XCTFail("unexpected call [\(mockName)]: \(String(describing: call))", file: file, line: line)
+            } else {
+                XCTFail("unexpected call: \(String(describing: call))", file: file, line: line)
+            }
+            return
+        }
+        expectations.remove(at: index)
+    }
+    
+    func verify(file: StaticString, line: UInt) {
+        if !expectations.isEmpty {
+            for expectation in expectations {
+                if let mockName = self.mockName {
+                    XCTFail("unsatisfied expectation [\(mockName)]: \(String(describing: expectation))", file: file, line: line)
+                } else {
+                    XCTFail("unsatisfied expectation: \(String(describing: expectation))", file: file, line: line)
+                }
+            }
+        }
+        
+        expectations = []
+    }
+}
+
+/// `ExpectationSetter` adds things to a list of expected calls, before the
+/// test-subject is stimulated. It will reject duplicate expectations.
+private final class ExpectationSetter: ExpectationReceiver {
+    private let mockName: String?
+    private let consumer: ExpectationConsumer
+    
+    init(mockName: String?, consumer: ExpectationConsumer) {
+        self.mockName = mockName
+        self.consumer = consumer
+    }
+    
+    func expect() -> ExpectationReceiver {
+        preconditionFailure()
+    }
+    
+    func accept(call: String, file: StaticString, line: UInt) {
+        guard !consumer.expectations.contains(call) else {
+            if let mockName = self.mockName {
+                XCTFail("duplicate expectation [\(mockName)]: \(String(describing: call))", file: file, line: line)
+            } else {
+                XCTFail("duplicate expectation: \(String(describing: call))", file: file, line: line)
+            }
+            return
+        }
+        consumer.expectations.append(call)
+    }
+    
+    func verify(file: StaticString, line: UInt) {
+        preconditionFailure()
+    }
+}
+
+/// Extend `MockBase` to create a Swift mock object.
+///
+/// Generic types:
+/// * `MockProtocol` is the type that this object is mocking. It's probably a Swift protocol. The mock object (which extends this base class) should adopt this protocol too
+///
+/// See `MockAnalytics` for an example.
+// swiftlint:disable:next prefer_final_classes
+public class MockBase<MockProtocol>: NSObject {
+    /// This creates another instance of the mock object, but containing an ExpectationSetter
+    // expect is a _setter_ receiver
+    // by the time this one is called, a MockBase object must have been initialised, self.receiver is of type consumer. Calling ExpectationConsumer.expect() returns an instance of Expectation_Setter_
+    public lazy var expect: MockProtocol = type(of: self).init(name: self.mockName, receiver: self.receiver.expect()) as! MockProtocol
+    
+    public let mockName: String?
+    internal var receiver: ExpectationReceiver
+    
+    // this initialises a consumer receiver
+    internal required init(name mockName: String? = nil,
+                           receiver: ExpectationReceiver? = nil) {
+        self.mockName = mockName
+        self.receiver = receiver ?? ExpectationConsumer(mockName: mockName)
+    }
+    
+    public func verify(file: StaticString = #file, line: UInt = #line) {
+        receiver.verify(file: file, line: line)
+    }
+    
+    /// `accept()` should be used on an event-like function to assert that something has happened.
+    /// A mock function which only provides value, e.g. canDoSomething() -> Bool, may not need to call `accept()` as the test shouldn't care _how_ a value is derived.
+    /// In other words, that kind of function should be a stub so the test is not too fragile
+    internal func accept(_ call: String = #function, file: StaticString = #file, line: UInt = #line) {
+        receiver.accept(call: call, file: file, line: line)
+    }
+}
+
+/// A mock object which subscribes to a publisher, and can check expectations about when values are emitted.
+///
+/// - Note:
+/// ```
+/// // recommended way to create the mock:
+/// let mock = MockSubscriber(MyViewModel.self,
+///                           keyPath: \.$publishedProperty,
+///                           propertyName: "publishedProperty")
+///
+/// // or without specifying a name for the mock:
+/// let mock = MockSubscriber(MyViewModel.self,
+///                           keyPath: \.$publishedProperty)
+///
+/// // attaching (subscribing) the mock to a publisher:
+/// // (don't forget that a Publisher emits its current
+/// // value when a new Subscriber is added - so you'll
+/// // need an expectation here too)
+/// mock.observe(viewModel)
+///
+/// // expecting that a value will be emitted:
+/// mock.expect(emitValue: "never gonna give you up")
+///
+/// // verifying an expectation was satisfied
+/// mock.verify()
+/// ```
+///
+/// - Warning:
+/// This has been tested with publishers that emit value types only, or structs containing value types. To use it with
+/// reference types, you might need to make the reference type conform to `CustomStringConvertable`,
+/// so that the mock can make a sensible string-representation of the emitted value:
+///
+/// ```
+/// extension MyReferenceType: CustomStringConvertable {
+///     var description: String {
+///         "[\(self.aProperty),\(self.anotherProperty)]"
+///     }
+/// }
+/// ```
+///
+/// If you do use this `MockSubscriber` with reference types, please update these docs! 😘
+class MockSubscriber<ObservableType, PublishedType> {
+    private let keyPath: KeyPath<ObservableType, Published<PublishedType>.Publisher>
+    private var cancellable: AnyCancellable?
+    
+    private let expectationConsumer: ExpectationConsumer
+    
+    /// Create a mock object which subscribes to a publisher
+    /// - Parameters:
+    ///   - type: The type which owns the publisher
+    ///   - keyPath: A keypath to the published property
+    ///   - propertyName: An optional descriptive name for the property
+    init(_ type: ObservableType.Type,
+         keyPath: KeyPath<ObservableType, Published<PublishedType>.Publisher>,
+         propertyName: String? = nil) {
+        self.keyPath = keyPath
+        
+        let mockName: String
+        if let propertyName = propertyName {
+            mockName = "\(String(describing: ObservableType.self)).\(propertyName)"
+        } else {
+            mockName = "\(String(describing: ObservableType.self)) \(String(describing: PublishedType.self)) value"
+        }
+        self.expectationConsumer = ExpectationConsumer(mockName: mockName)
+    }
+    
+    func observe(_ observable: ObservableType, file: StaticString = #file, line: UInt = #line) {
+        cancellable = observable[keyPath: self.keyPath]
+            .sink(receiveValue: { [weak self] emittedValue in
+                guard let self = self else { return }
+                let callString = String(describing: emittedValue)
+                self.expectationConsumer.accept(call: callString, file: file, line: line)
+            })
+    }
+    
+    func expect(emitValue: PublishedType, file: StaticString = #file, line: UInt = #line) {
+        let callString = String(describing: emitValue)
+        self.expectationConsumer.expect().accept(call: callString, file: file, line: line)
+    }
+    
+    func verify(file: StaticString = #file, line: UInt = #line) {
+        self.expectationConsumer.verify(file: file, line: line)
+    }
+}
+
+/// A mock object which subscribes to a Combine Publisher
+///
+/// - Note:
+/// ```
+/// // recommended way to create the mock:
+/// let mockSubscriber = MockPublisherSubscriber()
+///
+/// // attaching (subscribing) the mock to a Combine Publisher:
+/// object.functionReturningAnyPublisher().subscribe(mockSubscriber)
+///
+/// // expecting that a value will be emitted:
+/// mockSubscriber.expect(input: 1)
+///
+/// // expecting that the publisher will complete with an error
+/// mockSubscriber.expect(error: MyErrorType.disaster)
+///
+/// // expecting that a value will finish:
+/// mockSubscriber.expectFinish()
+///
+/// // verifying an expectation was satisfied
+/// mockSubscriber.verify()
+/// ```
+public final class MockPublisherSubscriber<Input, Failure: Error>: Subscriber {
+    private var expectationConsumer: ExpectationConsumer
+    private let initFile: StaticString
+    private let initLine: UInt
+    
+    init(mockName: String? = nil, file: StaticString = #file, line: UInt = #line) {
+        self.expectationConsumer = ExpectationConsumer(mockName: mockName)
+        self.initFile = file
+        self.initLine = line
+    }
+    
+    public func receive(subscription: Subscription) {
+        subscription.request(.max(1))
+    }
+
+    public func receive(_ input: Input) -> Subscribers.Demand {
+        let callString = "value: \(input)"
+        self.expectationConsumer.accept(call: callString, file: self.initFile, line: self.initLine)
+        return .max(1)
+    }
+    
+    public func receive(completion: Subscribers.Completion<Failure>) {
+        switch completion {
+        case .finished:
+            self.expectationConsumer.accept(call: "finish", file: self.initFile, line: self.initLine)
+        case .failure(let error):
+            let callString = "error: \(error)"
+            self.expectationConsumer.accept(call: callString, file: self.initFile, line: self.initLine)
+        }
+    }
+    
+    public func expect(input: Input, file: StaticString = #file, line: UInt = #line) {
+        let callString = "value: \(input)"
+        self.expectationConsumer.expect().accept(call: callString, file: file, line: line)
+    }
+    
+    public func expect(error: Failure, file: StaticString = #file, line: UInt = #line) {
+        let callString = "error: \(error)"
+        self.expectationConsumer.expect().accept(call: callString, file: file, line: line)
+    }
+    
+    public func expectFinish(file: StaticString = #file, line: UInt = #line) {
+        self.expectationConsumer.expect().accept(call: "finish", file: file, line: line)
+    }
+    
+    public func verify(file: StaticString = #file, line: UInt = #line) {
+        self.expectationConsumer.verify(file: file, line: line)
+    }
+}
+
+public extension NSObject {
+    @objc var className: String {
+        return "\(type(of: self))"
+    }
+    
+    @objc final class var className: String {
+        return "\(self)"
+    }
+}
